@@ -1,7 +1,6 @@
 "use client";
-import React, { useState } from 'react';
-import { SECTORS_DATA } from '@/lib/constants';
-import { SectorData, TimeRange } from '@/lib/types';
+import React, { useState, useEffect } from 'react';
+import { TimeRange } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, LayoutGrid, Download } from 'lucide-react';
@@ -21,13 +20,20 @@ export default function SectorPerformance() {
     const [limit, setLimit] = useState(5);
     const [timeRange, setTimeRange] = useState<TimeRange>(TimeRange.D1);
     const setSelectedSector = useStore((state) => state.setSelectedSector);
+    const sectors = useStore((state) => state.sectors);
+    const fetchSectors = useStore((state) => state.fetchSectors);
+
+    // Fetch sectors on mount
+    useEffect(() => {
+        fetchSectors();
+    }, [fetchSectors]);
 
     // Filter and sort top sectors by change
-    const sortedData = [...SECTORS_DATA].sort((a, b) => b.change - a.change);
+    const sortedData = [...sectors].sort((a, b) => b.change - a.change);
     const chartData = sortedData.slice(0, limit);
 
-    const bestSector = sortedData[0];
-    const worstSector = sortedData[sortedData.length - 1];
+    const bestSector = sortedData[0] || { name: '-', change: 0 };
+    const worstSector = sortedData[sortedData.length - 1] || { name: '-', change: 0 };
     const totalFunds = sortedData.reduce((acc, curr) => acc + curr.fundsCount, 0);
 
     // Helper to render custom vertical bars
@@ -116,7 +122,7 @@ export default function SectorPerformance() {
                         <div>
                             <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Total Funds Tracked</p>
                             <p className="text-lg font-bold text-foreground">{totalFunds}</p>
-                            <p className="text-xs text-muted-foreground"> across {SECTORS_DATA.length} sectors</p>
+                            <p className="text-xs text-muted-foreground"> across {sectors.length} sectors</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -185,7 +191,7 @@ export default function SectorPerformance() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {sortedData.map((sector, index) => (
+                                {chartData.map((sector, index) => (
                                     <TableRow key={sector.id} className="cursor-pointer group" onClick={() => setSelectedSector(sector)}>
                                         <TableCell className="text-center text-muted-foreground font-mono text-xs">
                                             {index + 1}

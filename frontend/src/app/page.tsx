@@ -1,23 +1,29 @@
 "use client";
-import React from 'react';
+import { useEffect } from 'react';
 // import { SECTORS_DATA } from '@/lib/constants';
 import { useStore } from '@/store/useStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, TrendingUp, BarChart3, Plus, ArrowRight, Activity } from 'lucide-react';
+import { Star, TrendingUp, Plus, ArrowRight, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
   const setSelectedSector = useStore((state) => state.setSelectedSector);
   const sectors = useStore((state) => state.sectors);
   const toggleSectorFavorite = useStore((state) => state.toggleSectorFavorite);
+  const fetchSectors = useStore((state) => state.fetchSectors);
+
+  // Fetch sectors on mount
+  useEffect(() => {
+    fetchSectors();
+  }, [fetchSectors]);
 
   const favorites = sectors.filter(s => s.isFavorite);
   const topMovers = [...sectors].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 5);
 
   // Calculate Market Pulse based on all sectors
-  const marketAvg = sectors.reduce((acc, curr) => acc + curr.change, 0) / sectors.length;
+  const marketAvg = sectors.length > 0 ? sectors.reduce((acc, curr) => acc + curr.change, 0) / sectors.length : 0;
   const upCount = sectors.filter(s => s.change > 0).length;
   const sentiment = upCount > sectors.length / 2 ? 'Bullish' : 'Bearish';
 
@@ -103,71 +109,97 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
         {/* Left Column: Favorites (2/3 width on large screens) */}
-        <div className="xl:col-span-2 flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Star className="text-primary h-5 w-5" />
-              Watchlist
-            </h2>
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">Customize</Button>
-          </div>
+        <Card className="xl:col-span-2 flex flex-col overflow-hidden">
+          <CardContent className="p-6 flex flex-col gap-4 h-full">
+            <div className="flex items-center justify-between shrink-0">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Star className="text-primary h-5 w-5" />
+                Watchlist
+              </h2>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">Customize</Button>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {favorites.map(sector => (
-              <Card
-                key={sector.id}
-                className="hover:shadow-lg hover:border-primary/40 transition-all cursor-pointer group"
-                onClick={() => setSelectedSector(sector)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-foreground font-bold text-sm shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        {sector.name.substring(0, 2).toUpperCase()}
+            <div className="max-h-[380px] overflow-y-auto pr-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {favorites.map(sector => (
+                <Card
+                  key={sector.id}
+                  className="hover:shadow-lg hover:border-primary/40 transition-all cursor-pointer group"
+                  onClick={() => setSelectedSector(sector)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-foreground font-bold text-sm shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          {sector.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{sector.name}</h3>
+                          <span className="text-xs text-muted-foreground">{sector.marketCap} Cap</span>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{sector.name}</h3>
-                        <span className="text-xs text-muted-foreground">{sector.marketCap} Cap</span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 hover:bg-transparent"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSectorFavorite(sector.id);
+                          }}
+                        >
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        </Button>
+                        <Badge variant={sector.change >= 0 ? "default" : "destructive"} className={cn("text-xs font-bold px-2 py-0.5", sector.change >= 0 ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200")}>
+                          {sector.change > 0 ? '+' : ''}{sector.change}%
+                        </Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 hover:bg-transparent"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSectorFavorite(sector.id);
-                        }}
+
+                    {/* Sparkline Area */}
+                    <div className="h-12 mb-2 w-full opacity-80 group-hover:opacity-100 transition-opacity">
+                      {renderSparkline(sector.trend, sector.change >= 0)}
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs text-muted-foreground pt-3 border-t border-muted/50">
+                      <span>{sector.fundsCount} Funds</span>
+                      <span className="group-hover:translate-x-1 transition-transform flex items-center gap-1">Details <ArrowRight className="h-3 w-3" /></span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Add New Card - Show non-favorite sectors to add */}
+              {sectors.filter(s => !s.isFavorite).length > 0 && (
+                <div className="relative group">
+                  <Button 
+                    variant="outline" 
+                    className="h-[180px] w-full border-2 border-dashed border-muted-foreground/20 rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-muted/30 transition-all shadow-none peer"
+                  >
+                    <Plus className="h-8 w-8 mb-2" />
+                    <span className="font-medium text-sm">Add Sector</span>
+                  </Button>
+                  {/* Dropdown menu for adding sectors */}
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-popover border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 max-h-[200px] overflow-y-auto">
+                    {sectors.filter(s => !s.isFavorite).map(sector => (
+                      <button
+                        key={sector.id}
+                        className="w-full px-4 py-3 text-left hover:bg-muted flex items-center justify-between text-sm"
+                        onClick={() => toggleSectorFavorite(sector.id)}
                       >
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      </Button>
-                      <Badge variant={sector.change >= 0 ? "default" : "destructive"} className={cn("text-xs font-bold px-2 py-0.5", sector.change >= 0 ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200" : "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200")}>
-                        {sector.change > 0 ? '+' : ''}{sector.change}%
-                      </Badge>
-                    </div>
+                        <span className="font-medium">{sector.name}</span>
+                        <Badge variant={sector.change >= 0 ? "default" : "destructive"} className="text-xs">
+                          {sector.change > 0 ? '+' : ''}{sector.change}%
+                        </Badge>
+                      </button>
+                    ))}
                   </div>
-
-                  {/* Sparkline Area */}
-                  <div className="h-12 mb-2 w-full opacity-80 group-hover:opacity-100 transition-opacity">
-                    {renderSparkline(sector.trend, sector.change >= 0)}
-                  </div>
-
-                  <div className="flex justify-between items-center text-xs text-muted-foreground pt-3 border-t border-muted/50">
-                    <span>{sector.fundsCount} Funds</span>
-                    <span className="group-hover:translate-x-1 transition-transform flex items-center gap-1">Details <ArrowRight className="h-3 w-3" /></span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-
-            {/* Add New Card */}
-            <Button variant="outline" className="h-[180px] border-2 border-dashed border-muted-foreground/20 rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-muted/30 transition-all shadow-none">
-              <Plus className="h-8 w-8 mb-2" />
-              <span className="font-medium text-sm">Add Sector</span>
-            </Button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Right Column: Top Movers (1/3 width) */}
         <div className="xl:col-span-1 flex flex-col gap-6">

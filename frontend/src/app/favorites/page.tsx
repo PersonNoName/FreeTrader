@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 // import { SECTORS_DATA } from '@/lib/constants';
 import { TimeRange } from '@/lib/types';
 import { useStore } from '@/store/useStore';
@@ -15,6 +15,12 @@ export default function SectorFavorites() {
     const setSelectedSector = useStore((state) => state.setSelectedSector);
     const sectors = useStore((state) => state.sectors);
     const toggleSectorFavorite = useStore((state) => state.toggleSectorFavorite);
+    const fetchSectors = useStore((state) => state.fetchSectors);
+
+    // Fetch sectors on mount
+    useEffect(() => {
+        fetchSectors();
+    }, [fetchSectors]);
 
     const favorites = sectors.filter(s => s.isFavorite);
     const avgReturn = favorites.reduce((acc, curr) => acc + curr.change, 0) / (favorites.length || 1);
@@ -132,7 +138,7 @@ export default function SectorFavorites() {
                         </CardContent>
                     </Card>
 
-                    <div className="flex-1 space-y-3">
+                    <div className="flex-1 max-h-[400px] overflow-y-auto space-y-3 pr-1">
                         {favorites.map((sector) => (
                             <Card
                                 key={sector.id}
@@ -182,12 +188,32 @@ export default function SectorFavorites() {
                             </Card>
                         ))}
 
-                        <Button variant="outline" className="w-full py-6 border-dashed border-2 text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-muted/50 gap-2 h-auto">
-                            <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
-                                <Plus className="w-4 h-4" />
+                        {/* Add to Watchlist - Show non-favorite sectors */}
+                        {sectors.filter(s => !s.isFavorite).length > 0 && (
+                            <div className="relative group">
+                                <Button variant="outline" className="w-full py-6 border-dashed border-2 text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-muted/50 gap-2 h-auto">
+                                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+                                        <Plus className="w-4 h-4" />
+                                    </div>
+                                    Add to Watchlist
+                                </Button>
+                                {/* Dropdown menu for adding sectors */}
+                                <div className="absolute bottom-full left-0 right-0 mb-2 bg-popover border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 max-h-[200px] overflow-y-auto">
+                                    {sectors.filter(s => !s.isFavorite).map(sector => (
+                                        <button
+                                            key={sector.id}
+                                            className="w-full px-4 py-3 text-left hover:bg-muted flex items-center justify-between text-sm"
+                                            onClick={() => toggleSectorFavorite(sector.id)}
+                                        >
+                                            <span className="font-medium">{sector.name}</span>
+                                            <Badge variant={sector.change >= 0 ? "default" : "destructive"} className="text-xs">
+                                                {sector.change > 0 ? '+' : ''}{sector.change}%
+                                            </Badge>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            Add to Watchlist
-                        </Button>
+                        )}
                     </div>
                 </div>
 

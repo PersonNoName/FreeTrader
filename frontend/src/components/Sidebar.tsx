@@ -1,65 +1,115 @@
-import React from 'react';
-import { SUGGESTIONS } from '@/lib/constants';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+"use client";
+import { useStore } from '@/store/useStore';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, X } from 'lucide-react';
 
+// 图表颜色
+const CHART_COLORS = [
+    { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', dot: 'bg-blue-500' },
+    { bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', dot: 'bg-red-500' },
+    { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', dot: 'bg-green-500' },
+    { bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-200 dark:border-purple-800', dot: 'bg-purple-500' },
+    { bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
+];
+
 export default function Sidebar() {
+    const stocks = useStore((state) => state.stocks);
+    const selectedFundsForChart = useStore((state) => state.selectedFundsForChart);
+    const addFundToChart = useStore((state) => state.addFundToChart);
+    const removeFundFromChart = useStore((state) => state.removeFundFromChart);
+
+    // 未选中的基金作为建议
+    const suggestions = stocks.filter(
+        stock => !selectedFundsForChart.some(f => f.name === stock.name)
+    );
+
+    // 如果没有基金数据，显示空状态
+    if (stocks.length === 0) {
+        return (
+            <Card className="h-full flex flex-col overflow-hidden shadow-sm items-center justify-center">
+                <div className="text-center p-4">
+                    <div className="text-muted-foreground text-sm mb-1">暂无基金</div>
+                    <p className="text-xs text-muted-foreground/70">该板块没有可比较的基金</p>
+                </div>
+            </Card>
+        );
+    }
+
     return (
         <Card className="h-full flex flex-col overflow-hidden shadow-sm">
-            <div className="p-4 border-b">
-                <h2 className="font-semibold text-foreground mb-3">Graph selection</h2>
-                <Button variant="outline" className="w-full justify-between mb-4 h-9">
-                    <span className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" />
+            {/* Graph Selection Header */}
+            <div className="px-3 pt-3 pb-2 shrink-0">
+                <h2 className="font-semibold text-foreground text-sm mb-1.5">Graph selection</h2>
+                <Button variant="outline" className="w-full justify-between h-7 text-xs">
+                    <span className="flex items-center gap-1.5">
+                        <Plus className="h-3 w-3" />
                         Compare graphs
                     </span>
-                    <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-                        C
-                    </kbd>
+                    <span className="text-muted-foreground">{selectedFundsForChart.length}/5</span>
                 </Button>
-
-                <div className="space-y-2">
-                    {/* Active Graph Selection 1 */}
-                    <div className="flex items-center justify-between px-3 py-2 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-lg group cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-900/40 transition-colors">
-                        <div className="flex items-center gap-2">
-                            <div className="w-1 h-4 bg-primary rounded-full"></div>
-                            <span className="text-sm font-medium text-foreground">AAPL</span>
-                            <span className="text-xs text-muted-foreground">Market Cap</span>
-                        </div>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <X className="h-3 w-3" />
-                        </Button>
-                    </div>
-
-                    {/* Active Graph Selection 2 */}
-                    <div className="flex items-center justify-between px-3 py-2 bg-red-50/50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-lg group cursor-pointer hover:bg-red-100/50 dark:hover:bg-red-900/40 transition-colors">
-                        <div className="flex items-center gap-2">
-                            <div className="w-1 h-4 bg-destructive rounded-full"></div>
-                            <span className="text-sm font-medium text-foreground">AAPL</span>
-                            <span className="text-xs text-muted-foreground">Price Target</span>
-                        </div>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <X className="h-3 w-3" />
-                        </Button>
-                    </div>
-                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Comparison suggestions</h3>
-                <div className="space-y-1">
-                    {SUGGESTIONS.map((suggestion) => (
-                        <div key={suggestion.symbol} className="flex flex-col px-3 py-2.5 hover:bg-muted/50 rounded-lg cursor-pointer group transition-colors">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold text-foreground">{suggestion.symbol}</span>
-                                <span className="text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                    <Plus className="h-3 w-3" /> Add
-                                </span>
+            {/* Selected Funds */}
+            <div className="px-3 py-2 space-y-1.5 shrink-0 border-b">
+                {selectedFundsForChart.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-0.5">
+                        点击下方基金添加到图表
+                    </p>
+                ) : (
+                    selectedFundsForChart.map((fund, index) => {
+                        const color = CHART_COLORS[index % CHART_COLORS.length];
+                        return (
+                            <div 
+                                key={fund.name}
+                                className={`flex items-center justify-between px-2 py-1.5 ${color.bg} border ${color.border} rounded-md group cursor-pointer`}
+                            >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <div className={`w-1 h-3 ${color.dot} rounded-full shrink-0`}></div>
+                                    <span className="text-xs font-medium text-foreground truncate">{fund.fullName}</span>
+                                </div>
+                                <Button 
+                                    size="icon" 
+                                    variant="ghost" 
+                                    className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
+                                    onClick={() => removeFundFromChart(fund.name)}
+                                >
+                                    <X className="h-3 w-3" />
+                                </Button>
                             </div>
-                            <span className="text-xs text-muted-foreground">{suggestion.metric}</span>
-                        </div>
-                    ))}
+                        );
+                    })
+                )}
+            </div>
+
+            {/* Comparison Suggestions - Scrollable */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="px-3 py-1.5 shrink-0">
+                    <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Comparison suggestions
+                    </h3>
+                </div>
+                <div className="flex-1 overflow-y-auto px-3 pb-2">
+                    <div className="space-y-0">
+                        {suggestions.map((stock) => (
+                            <div 
+                                key={stock.name} 
+                                className="flex items-center justify-between py-1.5 hover:bg-muted/50 rounded px-2 -mx-2 cursor-pointer group transition-colors"
+                                onClick={() => addFundToChart(stock)}
+                            >
+                                <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-foreground truncate">{stock.name}</div>
+                                    <div className="text-[10px] text-muted-foreground truncate">{stock.fullName}</div>
+                                </div>
+                                <Plus className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
+                            </div>
+                        ))}
+                        {suggestions.length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-4">
+                                没有更多基金
+                            </p>
+                        )}
+                    </div>
                 </div>
             </div>
         </Card>

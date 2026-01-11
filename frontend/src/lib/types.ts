@@ -32,7 +32,7 @@ export enum TimeRange {
 }
 
 export interface SectorData {
-    id: string;
+    id: string | number;
     name: string;
     change: number; // Percentage
     price: number;
