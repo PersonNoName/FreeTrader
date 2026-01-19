@@ -39,22 +39,22 @@ export default function Sidebar() {
     return (
         <Card className="h-full flex flex-col overflow-hidden shadow-sm">
             {/* Graph Selection Header */}
-            <div className="px-3 pt-3 pb-2 shrink-0">
-                <h2 className="font-semibold text-foreground text-sm mb-1.5">Graph selection</h2>
-                <Button variant="outline" className="w-full justify-between h-7 text-xs">
-                    <span className="flex items-center gap-1.5">
+            <div className="px-3 pt-2 pb-0 shrink-0">
+                <h2 className="font-semibold text-foreground text-[11px] uppercase tracking-wider mb-1">Graph selection</h2>
+                <Button variant="outline" className="w-full justify-between h-6 text-[10px] px-2">
+                    <span className="flex items-center gap-1">
                         <Plus className="h-3 w-3" />
-                        Compare graphs
+                        Compare
                     </span>
-                    <span className="text-muted-foreground">{selectedFundsForChart.length}/5</span>
+                    <span className="text-muted-foreground scale-90">{selectedFundsForChart.length}/5</span>
                 </Button>
             </div>
 
             {/* Selected Funds */}
-            <div className="px-3 py-2 space-y-1.5 shrink-0 border-b">
+            <div className="px-3 py-0.5 space-y-1 shrink-0 border-b">
                 {selectedFundsForChart.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-0.5">
-                        点击下方基金添加到图表
+                    <p className="text-[10px] text-muted-foreground py-0.5">
+                        Select funds below to compare
                     </p>
                 ) : (
                     selectedFundsForChart.map((fund, index) => {
@@ -62,19 +62,19 @@ export default function Sidebar() {
                         return (
                             <div 
                                 key={fund.name}
-                                className={`flex items-center justify-between px-2 py-1.5 ${color.bg} border ${color.border} rounded-md group cursor-pointer`}
+                                className={`flex items-center justify-between px-2 py-1 ${color.bg} border ${color.border} rounded-md group cursor-pointer`}
                             >
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                    <div className={`w-1 h-3 ${color.dot} rounded-full shrink-0`}></div>
-                                    <span className="text-xs font-medium text-foreground truncate">{fund.fullName}</span>
+                                    <div className={`w-1 h-2.5 ${color.dot} rounded-full shrink-0`}></div>
+                                    <span className="text-[10px] font-medium text-foreground truncate">{fund.fullName}</span>
                                 </div>
                                 <Button 
                                     size="icon" 
                                     variant="ghost" 
-                                    className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
+                                    className="h-3.5 w-3.5 shrink-0 opacity-50 hover:opacity-100"
                                     onClick={() => removeFundFromChart(fund.name)}
                                 >
-                                    <X className="h-3 w-3" />
+                                    <X className="h-2.5 w-2.5" />
                                 </Button>
                             </div>
                         );

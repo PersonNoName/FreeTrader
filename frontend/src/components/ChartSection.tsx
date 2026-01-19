@@ -52,13 +52,26 @@ export default function ChartSection() {
             height: chartContainerRef.current.clientHeight,
             rightPriceScale: {
                 borderVisible: false,
-                scaleMargins: { top: 0.1, bottom: 0.1 },
+                scaleMargins: { top: 0.2, bottom: 0.2 }, // 增加留白，避免线条顶天立地，看起来太陡峭
             },
             timeScale: {
                 borderVisible: false,
+                fixLeftEdge: true,
+                fixRightEdge: true,
             },
             crosshair: {
-                vertLine: { labelVisible: false },
+                vertLine: {
+                    color: 'rgba(229, 231, 235, 0.5)',
+                    width: 1,
+                    style: 3,
+                    labelVisible: false,
+                },
+                horzLine: {
+                    color: 'rgba(229, 231, 235, 0.5)',
+                    width: 1,
+                    style: 3,
+                    labelVisible: true,
+                },
             },
         });
 
@@ -69,6 +82,7 @@ export default function ChartSection() {
             const series = chart.addSeries(LineSeries, {
                 color: LINE_COLORS[0],
                 lineWidth: 2,
+                crosshairMarkerVisible: true,
                 title: selectedSector.name,
             });
 
@@ -88,35 +102,55 @@ export default function ChartSection() {
                 const series = chart.addSeries(LineSeries, {
                     color: LINE_COLORS[index % LINE_COLORS.length],
                     lineWidth: 2,
+                    crosshairMarkerVisible: true,
                     title: fund.fullName,
                 });
 
-                // 生成模拟数据（基于基金价格和涨跌幅）
+                // 使用随机游走模型 (Random Walk) 生成更真实的金融曲线
                 const today = new Date();
                 const basePrice = fund.price || 1;
-                const volatility = Math.abs(fund.returns || 5) / 100;
+                const totalReturn = (fund.returns || 0) / 100;
                 
-                const data = Array.from({ length: Math.min(dataPoints, 100) }, (_, i) => {
-                    const date = new Date(today);
+                // 每日波动率 (Vol) 和 漂移项 (Drift)
+                // 减少波动率使曲线更平滑
+                const volatility = 0.015; 
+                
+                // 从起始价格倒推历史数据，或者从过去推到现在
+                // 这里我们生成过去 dataPoints 天的数据
+                
+                // 假设 basePrice 是今天的价格，我们需要反推过去的价格
+                // 或者我们设定 startPrice，让它走 dataPoints 步到达现在的价格附近
+                
+                let currentPrice = basePrice / (1 + totalReturn); // 估算起始价格
+                const trendStep = totalReturn / dataPoints; // 简单的平均每日趋势
+
+                const data = [];
+                for (let i = 0; i < dataPoints; i++) {
+                     const date = new Date(today);
                     if (activeRange === TimeRange.D1) {
                         date.setHours(today.getHours() - (dataPoints - i));
                     } else {
                         date.setDate(today.getDate() - (dataPoints - i));
                     }
                     
-                    // 模拟价格波动
-                    const trend = (i / dataPoints) * (fund.returns || 0) / 100;
-                    const noise = (Math.random() - 0.5) * volatility;
-                    const value = basePrice * (1 + trend + noise);
+                    // 随机游走: 下一步价格 = 当前价格 * (1 + 趋势 + 随机波动)
+                    // 使用正态分布近似 (Box-Muller transform 或简单随机)
+                    const randomShock = (Math.random() - 0.5) * volatility;
+                    const change = trendStep + randomShock;
                     
-                    return {
+                    currentPrice = currentPrice * (1 + change);
+                    
+                    // 确保价格为正数且保留合理精度
+                    const finalValue = Math.max(0.01, currentPrice);
+
+                    data.push({
                         time: (activeRange === TimeRange.D1 
                             ? Math.floor(date.getTime() / 1000) 
                             : date.toISOString().split('T')[0]) as Time,
-                        value: Math.max(0.01, value),
-                    };
-                });
-
+                        value: finalValue,
+                    });
+                }
+                
                 series.setData(data);
             });
         }
