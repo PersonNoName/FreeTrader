@@ -5,6 +5,12 @@ import com.freetrader.dto.SectorDTO;
 import com.freetrader.entity.User;
 import com.freetrader.service.SectorService;
 import com.freetrader.service.UserService;
+import com.freetrader.util.SecurityConstants;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "板块管理", description = "ETF板块数据查询接口")
 @RestController
 @RequestMapping("/api/sectors")
 @RequiredArgsConstructor
@@ -21,12 +28,9 @@ public class SectorController {
     private final SectorService sectorService;
     private final UserService userService;
 
-    /**
-     * Get current user ID from security context
-     */
     private Integer getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+        if (auth != null && auth.isAuthenticated() && !SecurityConstants.ANONYMOUS_USER.equals(auth.getPrincipal())) {
             String username = auth.getName();
             User user = userService.findByUsername(username);
             return user != null ? user.getId() : null;
@@ -34,31 +38,25 @@ public class SectorController {
         return null;
     }
 
-    /**
-     * Get all sectors with average performance
-     */
+    @Operation(summary = "获取所有板块", description = "获取所有ETF板块列表，包含平均涨跌幅、走势等信息")
+    @ApiResponse(responseCode = "200", description = "获取成功")
     @GetMapping
     public Result<List<SectorDTO>> getAllSectors() {
-        try {
-            Integer userId = getCurrentUserId();
-            List<SectorDTO> sectors = sectorService.getAllSectors(userId);
-            return Result.success(sectors);
-        } catch (Exception e) {
-            return Result.error(e.getMessage());
-        }
+        Integer userId = getCurrentUserId();
+        List<SectorDTO> sectors = sectorService.getAllSectors(userId);
+        return Result.success(sectors);
     }
 
-    /**
-     * Get sector detail with top funds
-     */
+    @Operation(summary = "获取板块详情", description = "获取指定板块的详细信息，包含旗下表现最好的ETF列表")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "获取成功"),
+            @ApiResponse(responseCode = "404", description = "板块不存在")
+    })
     @GetMapping("/{id}")
-    public Result<Map<String, Object>> getSectorDetail(@PathVariable Integer id) {
-        try {
-            Integer userId = getCurrentUserId();
-            Map<String, Object> detail = sectorService.getSectorDetail(id, userId);
-            return Result.success(detail);
-        } catch (Exception e) {
-            return Result.error(e.getMessage());
-        }
+    public Result<Map<String, Object>> getSectorDetail(
+            @Parameter(description = "板块ID") @PathVariable Integer id) {
+        Integer userId = getCurrentUserId();
+        Map<String, Object> detail = sectorService.getSectorDetail(id, userId);
+        return Result.success(detail);
     }
 }

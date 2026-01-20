@@ -17,9 +17,12 @@
 ### 后端
 - **Spring Boot 3.2.1** - Java框架
 - **Java 17** - 编程语言
-- **Spring Security** - 安全框架（JWT认证）
+- **Spring Security 6** - 安全框架（JWT认证）
 - **MyBatis-Plus 3.5.5** - ORM框架
-- **MySQL** - 数据库
+- **MySQL 8.0** - 数据库
+- **Redis** - 缓存和Token黑名单
+- **JWT (jjwt 0.12.3)** - Token认证
+- **SpringDoc OpenAPI 2.3.0** - API文档
 - **Lombok** - 简化代码
 
 ## 项目结构
@@ -32,24 +35,32 @@ FreeTrader/
 │   └── package.json   # 前端依赖配置
 ├── backend/           # Spring Boot后端
 │   └── src/main/java/com/freetrader/
-│       ├── config/    # 配置类
-│       ├── controller/# 控制器
+│       ├── config/    # 配置类（Cors、Redis、Security等）
+│       ├── controller/# 控制器（Auth、Sector、Favorite）
 │       ├── dto/       # 数据传输对象
 │       ├── entity/    # 实体类
+│       ├── exception/ # 异常处理（BusinessException、GlobalExceptionHandler）
 │       ├── mapper/    # 数据访问层
-│       ├── security/  # 安全配置
+│       ├── security/  # 安全配置（JWT、Filter）
 │       └── service/   # 业务逻辑层
 └── sql/               # 数据库初始化脚本
 ```
 
 ## 主要功能
 
-- 用户注册和登录（JWT认证）
-- ETF信息查询
-- 用户收藏管理
-- 分类/板块浏览
-- 净值数据展示
-- 数据可视化图表
+- 用户注册和登录（JWT Access/Refresh Token）
+- ETF信息查询和板块浏览
+- 用户收藏管理（收藏/取消收藏）
+- Redis缓存和Token黑名单机制
+- 分类/板块平均涨跌幅计算
+- 净值数据展示和图表可视化
+- Swagger API文档自动生成
+
+## API文档
+
+启动后端服务后，可通过以下地址访问API文档：
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
 
 ## 快速开始
 
@@ -59,6 +70,7 @@ FreeTrader/
 - Java 17+
 - MySQL 8.0+
 - Maven 3.8+
+- Redis 6.0+（可选，缓存功能需要）
 
 ### 数据库初始化
 
@@ -81,7 +93,8 @@ mysql -u root -p freetrader < sql/user_collection.sql
 ```bash
 cd backend
 
-# 修改 application.yml 配置数据库连接
+# 修改 application.yml 配置数据库连接和Redis
+# mvn clean package
 # mvn spring-boot:run
 
 # 或使用IDE运行 FreeTraderApplication
@@ -112,12 +125,21 @@ npm start
 - 入口文件：`backend/src/main/java/com/freetrader/FreeTraderApplication.java`
 - 配置文件：`backend/src/main/resources/application.yml`
 - API端口：8080
+- 支持通过环境变量覆盖配置（DB_URL, JWT_SECRET, REDIS_HOST等）
 
 ### 前端
 
 - 开发端口：3000
 - 源码目录：`frontend/src`
 - API代理：已配置到后端8080端口
+
+## 安全特性
+
+- JWT Token认证（Access Token 1小时，Refresh Token 7天）
+- Token黑名单机制（登出后Token失效）
+- BCrypt密码加密
+- 统一异常处理
+- CORS跨域配置
 
 ## 许可证
 

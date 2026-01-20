@@ -5,10 +5,13 @@ import com.freetrader.dto.AuthResponse;
 import com.freetrader.dto.LoginRequest;
 import com.freetrader.dto.RegisterRequest;
 import com.freetrader.entity.User;
+import com.freetrader.exception.BusinessException;
+import com.freetrader.exception.ErrorCode;
 import com.freetrader.mapper.UserMapper;
 import com.freetrader.security.JwtUtils;
 import com.freetrader.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -16,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService implements UserDetailsService {
@@ -36,41 +40,59 @@ public class UserService implements UserDetailsService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        // Check if username exists
+        log.info("用户注册: {}", request.getUsername());
+        
         if (userMapper.selectCount(new QueryWrapper<User>().eq("username", request.getUsername())) > 0) {
-            throw new RuntimeException("用户名已存在");
+            throw new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
 
-        // Check if email exists
         if (userMapper.selectCount(new QueryWrapper<User>().eq("email", request.getEmail())) > 0) {
-            throw new RuntimeException("邮箱已被注册");
+            throw new BusinessException(ErrorCode.EMAIL_EXISTS);
         }
 
-        // Create new user
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
         userMapper.insert(user);
+        log.info("用户注册成功: userId={}", user.getId());
 
-        // Generate token
-        String token = jwtUtils.generateToken(user.getUsername());
+        String accessToken = jwtUtils.generateAccessToken(user.getUsername());
+        String refreshToken = jwtUtils.generateRefreshToken(user.getUsername());
 
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getEmail());
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .build();
     }
 
     public AuthResponse login(LoginRequest request) {
+        log.info("用户登录: {}", request.getUsername());
+        
         User user = userMapper.selectOne(
                 new QueryWrapper<User>().eq("username", request.getUsername()).isNull("deleted_at"));
 
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("用户名或密码错误");
+            log.warn("登录失败: 用户名或密码错误 - {}", request.getUsername());
+            throw new BusinessException(ErrorCode.PASSWORD_ERROR);
         }
 
-        String token = jwtUtils.generateToken(user.getUsername());
+        String accessToken = jwtUtils.generateAccessToken(user.getUsername());
+        String refreshToken = jwtUtils.generateRefreshToken(user.getUsername());
+        
+        log.info("用户登录成功: userId={}", user.getId());
 
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getEmail());
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .build();
     }
 
     public User findByUsername(String username) {

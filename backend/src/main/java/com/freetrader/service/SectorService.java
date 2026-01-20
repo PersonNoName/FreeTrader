@@ -1,20 +1,30 @@
 package com.freetrader.service;
 
+import com.freetrader.config.SectorProperties;
 import com.freetrader.dto.EtfDTO;
 import com.freetrader.dto.SectorDTO;
 import com.freetrader.entity.Category;
+import com.freetrader.exception.BusinessException;
+import com.freetrader.exception.ErrorCode;
 import com.freetrader.mapper.CalendarMapper;
 import com.freetrader.mapper.CategoryMapper;
 import com.freetrader.mapper.EtfInfoMapper;
 import com.freetrader.mapper.UserCollectionMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * 板块服务
+ * 提供 ETF 板块数据查询、计算和缓存功能
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SectorService {
@@ -23,6 +33,7 @@ public class SectorService {
     private final EtfInfoMapper etfInfoMapper;
     private final CalendarMapper calendarMapper;
     private final UserCollectionMapper userCollectionMapper;
+    private final SectorProperties sectorProperties;
 
     @Value("${app.trading-days:7}")
     private int defaultTradingDays;
@@ -30,10 +41,16 @@ public class SectorService {
     @Value("${app.top-funds:10}")
     private int defaultTopFunds;
 
+    @Value("${app.sector.estimated-cap-multiplier:50}")
+    private double estimatedCapMultiplier;
+
+    @Value("${app.sector.base-price:1000.0}")
+    private double basePrice;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     /**
-     * Get trading day range
+     * 获取交易日范围
      */
     private List<String> getTradingDayRange(int days) {
         String today = LocalDate.now().format(DATE_FORMATTER);
@@ -50,9 +67,44 @@ public class SectorService {
     }
 
     /**
-     * Get all sectors with average performance
+     * 获取用户收藏的板块 ID 列表（带缓存）
+     * 使用 Spring Cache 抽象，统一缓存策略
+     */
+    @Cacheable(value = "userFavorites", key = "#userId", unless = "#userId == null")
+    public Set<Integer> getUserFavorites(Integer userId) {
+        if (userId == null) {
+            return Collections.emptySet();
+        }
+
+        log.debug("从数据库加载用户收藏: userId={}", userId);
+        List<Integer> cids = userCollectionMapper.findFavoriteCidsByUserId(userId);
+        if (cids == null) {
+            return Collections.emptySet();
+        }
+        return new HashSet<>(cids);
+    }
+
+    /**
+     * 获取所有板块（带平均涨跌幅）
      */
     public List<SectorDTO> getAllSectors(Integer userId) {
+        List<SectorDTO> sectors = getBaseSectors();
+
+        Set<Integer> favoriteCids = getUserFavorites(userId);
+
+        for (SectorDTO sector : sectors) {
+            sector.setIsFavorite(favoriteCids.contains(sector.getId()));
+        }
+
+        return sectors;
+    }
+
+    /**
+     * 获取板块基础数据（带缓存）
+     */
+    @Cacheable(value = "sectors", key = "'base_sectors'")
+    public List<SectorDTO> getBaseSectors() {
+        log.debug("从数据库加载板块基础数据");
         List<String> tradingDays = getTradingDayRange(defaultTradingDays);
 
         String latestDay = tradingDays.isEmpty() ? LocalDate.now().format(DATE_FORMATTER) : tradingDays.get(0);
@@ -62,51 +114,48 @@ public class SectorService {
 
         List<SectorDTO> sectors = categoryMapper.findAllSectorsWithAvgChange(latestDay, earliestDay);
 
-        // Get user favorites
-        Set<Integer> favoriteCids = new HashSet<>();
-        if (userId != null) {
-            List<Integer> cids = userCollectionMapper.findFavoriteCidsByUserId(userId);
-            if (cids != null) {
-                favoriteCids.addAll(cids);
-            }
-        }
-
-        // Enrich sector data
         for (SectorDTO sector : sectors) {
-            sector.setIsFavorite(favoriteCids.contains(sector.getId()));
-
-            // Calculate market cap placeholder
-            if (sector.getFundsCount() != null) {
-                double estimatedCap = sector.getFundsCount() * 50; // Placeholder formula
-                if (estimatedCap >= 1000) {
-                    sector.setMarketCap(String.format("%.1fT", estimatedCap / 1000));
-                } else {
-                    sector.setMarketCap(String.format("%.1fB", estimatedCap));
-                }
-            } else {
-                sector.setMarketCap("N/A");
-            }
-
-            // Calculate price placeholder (based on avg change)
-            double basePrice = 1000.0;
-            double change = sector.getChange() != null ? sector.getChange() : 0.0;
-            sector.setPrice(basePrice * (1 + change / 100));
-
-            // Generate trend data (simulated based on change direction)
-            sector.setTrend(generateTrendData(change));
+            enrichSectorData(sector);
         }
 
         return sectors;
     }
 
     /**
-     * Get sector detail with top performing funds
+     * 丰富板块数据（计算市值、价格、走势）
      */
+    private void enrichSectorData(SectorDTO sector) {
+        // 计算估算市值
+        if (sector.getFundsCount() != null) {
+            double estimatedCap = sector.getFundsCount() * estimatedCapMultiplier;
+            if (estimatedCap >= 1000) {
+                sector.setMarketCap(String.format("%.1fT", estimatedCap / 1000));
+            } else {
+                sector.setMarketCap(String.format("%.1fB", estimatedCap));
+            }
+        } else {
+            sector.setMarketCap("N/A");
+        }
+
+        // 计算价格
+        double change = sector.getChange() != null ? sector.getChange() : 0.0;
+        sector.setPrice(basePrice * (1 + change / 100));
+
+        // 生成走势数据
+        sector.setTrend(generateTrendData(change));
+    }
+
+    /**
+     * 获取板块详情（带表现最好的 ETF 列表）
+     */
+    @Cacheable(value = "sectorDetail", key = "#sectorId")
     public Map<String, Object> getSectorDetail(Integer sectorId, Integer userId) {
-        // Get sector info
+        log.debug("从数据库加载板块详情: sectorId={}", sectorId);
+
         Category category = categoryMapper.selectById(sectorId);
         if (category == null) {
-            throw new RuntimeException("板块不存在");
+            log.warn("板块不存在: sectorId={}", sectorId);
+            throw new BusinessException(ErrorCode.SECTOR_NOT_FOUND);
         }
 
         List<String> tradingDays = getTradingDayRange(defaultTradingDays);
@@ -115,35 +164,18 @@ public class SectorService {
                 ? LocalDate.now().minusDays(defaultTradingDays).format(DATE_FORMATTER)
                 : tradingDays.get(tradingDays.size() - 1);
 
-        // Get top funds
+        // 获取板块下表现最好的 ETF
         List<EtfDTO> topFunds = etfInfoMapper.findTopEtfsBySector(
                 category.getName(),
                 latestDay,
                 earliestDay,
                 defaultTopFunds);
 
-        // Enrich fund data with display properties
-        String[] bgColors = { "bg-blue-600", "bg-green-600", "bg-purple-600", "bg-orange-600", "bg-red-600",
-                "bg-indigo-600", "bg-pink-600", "bg-teal-600" };
-        for (int i = 0; i < topFunds.size(); i++) {
-            EtfDTO fund = topFunds.get(i);
-            // Use first character of chinese name for icon, fallback to code
-            String iconChar = fund.getFullName() != null && !fund.getFullName().isEmpty() 
-                    ? fund.getFullName().substring(0, 1) 
-                    : (fund.getName() != null ? fund.getName().substring(0, 1).toUpperCase() : "F");
-            fund.setIcon(iconChar);
-            fund.setIconBg(bgColors[i % bgColors.length]);
-            fund.setIconColor("text-white");
-            fund.setFcfShare(Math.random() * 5); // Placeholder
-            fund.setMktCap(String.format("%.1fB", Math.random() * 10 + 1)); // Placeholder
-            fund.setIsFavorite(false); // Stock-level favorites not implemented yet
-        }
-
-        // Check if sector is favorited
+        // 检查板块是否已收藏
         boolean isFavorite = false;
         if (userId != null) {
-            List<Integer> cids = userCollectionMapper.findFavoriteCidsByUserId(userId);
-            isFavorite = cids != null && cids.contains(sectorId);
+            Set<Integer> favoriteCids = getUserFavorites(userId);
+            isFavorite = favoriteCids.contains(sectorId);
         }
 
         Map<String, Object> result = new HashMap<>();
@@ -158,16 +190,19 @@ public class SectorService {
     }
 
     /**
-     * Generate trend data for sparkline visualization
+     * 生成走势数据（用于 Sparkline 展示）
      */
     private List<Double> generateTrendData(Double change) {
         List<Double> trend = new ArrayList<>();
-        double base = 10.0;
-        double direction = change != null && change >= 0 ? 0.3 : -0.3;
+        double base = sectorProperties.getTrendBaseValue();
+        double directionFactor = sectorProperties.getTrendDirectionFactor();
+        double direction = change != null && change >= 0 ? directionFactor : -directionFactor;
+        int dataPoints = sectorProperties.getTrendDataPoints();
+        double volatility = sectorProperties.getTrendVolatility();
 
         Random random = new Random();
-        for (int i = 0; i < 7; i++) {
-            double value = base + (i * direction) + (random.nextDouble() - 0.5) * 2;
+        for (int i = 0; i < dataPoints; i++) {
+            double value = base + (i * direction) + (random.nextDouble() - 0.5) * volatility;
             trend.add(Math.round(value * 10) / 10.0);
         }
 

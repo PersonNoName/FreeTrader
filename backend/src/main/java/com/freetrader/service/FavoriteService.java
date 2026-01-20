@@ -3,8 +3,12 @@ package com.freetrader.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.freetrader.dto.SectorDTO;
 import com.freetrader.entity.UserCollection;
+import com.freetrader.exception.BusinessException;
+import com.freetrader.exception.ErrorCode;
 import com.freetrader.mapper.UserCollectionMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +16,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 收藏服务
+ * 处理用户板块收藏的增删查操作
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FavoriteService {
@@ -20,7 +29,7 @@ public class FavoriteService {
     private final SectorService sectorService;
 
     /**
-     * Get user's favorite sectors
+     * 获取用户收藏的板块列表
      */
     public List<SectorDTO> getFavoriteSectors(Integer userId) {
         List<Integer> favoriteCids = userCollectionMapper.findFavoriteCidsByUserId(userId);
@@ -32,29 +41,33 @@ public class FavoriteService {
     }
 
     /**
-     * Add sector to favorites
+     * 添加板块到收藏
      */
+    @CacheEvict(value = "userFavorites", key = "#userId")
     @Transactional
     public void addFavorite(Integer userId, Integer cid) {
-        // Check if already favorited
+        // 检查是否已收藏
         Long count = userCollectionMapper.selectCount(
                 new QueryWrapper<UserCollection>()
                         .eq("user_id", userId)
                         .eq("cid", cid));
 
         if (count > 0) {
-            throw new RuntimeException("已收藏该板块");
+            throw new BusinessException(ErrorCode.FAVORITE_EXISTS);
         }
 
         UserCollection collection = new UserCollection();
         collection.setUserId(userId);
         collection.setCid(cid);
         userCollectionMapper.insert(collection);
+
+        log.info("用户添加收藏: userId={}, cid={}", userId, cid);
     }
 
     /**
-     * Remove sector from favorites
+     * 移除板块收藏
      */
+    @CacheEvict(value = "userFavorites", key = "#userId")
     @Transactional
     public void removeFavorite(Integer userId, Integer cid) {
         int deleted = userCollectionMapper.delete(
@@ -63,13 +76,18 @@ public class FavoriteService {
                         .eq("cid", cid));
 
         if (deleted == 0) {
-            throw new RuntimeException("未收藏该板块");
+            throw new BusinessException(ErrorCode.FAVORITE_NOT_FOUND);
         }
+
+        log.info("用户移除收藏: userId={}, cid={}", userId, cid);
     }
 
     /**
-     * Toggle sector favorite status
+     * 切换板块收藏状态
+     * 
+     * @return true-已收藏，false-未收藏
      */
+    @CacheEvict(value = "userFavorites", key = "#userId")
     @Transactional
     public boolean toggleFavorite(Integer userId, Integer cid) {
         Long count = userCollectionMapper.selectCount(
@@ -78,10 +96,18 @@ public class FavoriteService {
                         .eq("cid", cid));
 
         if (count > 0) {
-            removeFavorite(userId, cid);
+            userCollectionMapper.delete(
+                    new QueryWrapper<UserCollection>()
+                            .eq("user_id", userId)
+                            .eq("cid", cid));
+            log.info("用户取消收藏: userId={}, cid={}", userId, cid);
             return false;
         } else {
-            addFavorite(userId, cid);
+            UserCollection collection = new UserCollection();
+            collection.setUserId(userId);
+            collection.setCid(cid);
+            userCollectionMapper.insert(collection);
+            log.info("用户添加收藏: userId={}, cid={}", userId, cid);
             return true;
         }
     }
