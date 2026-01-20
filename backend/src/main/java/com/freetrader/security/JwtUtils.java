@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import jakarta.annotation.PostConstruct;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,15 +36,25 @@ public class JwtUtils {
     private static final int MIN_SECRET_KEY_LENGTH = 32;
 
     /**
+     * 启动时验证密钥长度
+     * 如果密钥长度不足，抛出异常而非静默填充
+     */
+    @PostConstruct
+    public void validateSecretKey() {
+        if (secret == null || secret.getBytes().length < MIN_SECRET_KEY_LENGTH) {
+            throw new IllegalStateException(
+                    String.format("JWT secret key must be at least %d bytes. " +
+                            "Current length: %d bytes. Please set a secure JWT_SECRET environment variable.",
+                            MIN_SECRET_KEY_LENGTH,
+                            secret == null ? 0 : secret.getBytes().length));
+        }
+    }
+
+    /**
      * 获取签名密钥
      */
     private SecretKey getSigningKey() {
         byte[] keyBytes = secret.getBytes();
-        if (keyBytes.length < MIN_SECRET_KEY_LENGTH) {
-            byte[] paddedKey = new byte[MIN_SECRET_KEY_LENGTH];
-            System.arraycopy(keyBytes, 0, paddedKey, 0, keyBytes.length);
-            keyBytes = paddedKey;
-        }
         return Keys.hmacShaKeyFor(keyBytes);
     }
 

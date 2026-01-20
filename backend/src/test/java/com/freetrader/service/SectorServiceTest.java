@@ -2,6 +2,7 @@ package com.freetrader.service;
 
 import com.freetrader.config.SectorProperties;
 import com.freetrader.dto.SectorDTO;
+import com.freetrader.dto.SectorDetailDTO;
 import com.freetrader.entity.Category;
 import com.freetrader.exception.BusinessException;
 import com.freetrader.mapper.CalendarMapper;
@@ -152,13 +153,13 @@ class SectorServiceTest {
                     .thenReturn(Collections.emptyList());
 
             // When
-            var result = sectorService.getSectorDetail(sectorId, userId);
+            SectorDetailDTO result = sectorService.getSectorDetail(sectorId, userId);
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(result.get("id")).isEqualTo(sectorId);
-            assertThat(result.get("name")).isEqualTo("科技");
-            assertThat(result.get("isFavorite")).isEqualTo(false);
+            assertThat(result.getId()).isEqualTo(sectorId);
+            assertThat(result.getName()).isEqualTo("科技");
+            assertThat(result.getIsFavorite()).isEqualTo(false);
         }
     }
 

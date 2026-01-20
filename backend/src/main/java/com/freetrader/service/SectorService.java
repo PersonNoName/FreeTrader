@@ -3,6 +3,7 @@ package com.freetrader.service;
 import com.freetrader.config.SectorProperties;
 import com.freetrader.dto.EtfDTO;
 import com.freetrader.dto.SectorDTO;
+import com.freetrader.dto.SectorDetailDTO;
 import com.freetrader.entity.Category;
 import com.freetrader.exception.BusinessException;
 import com.freetrader.exception.ErrorCode;
@@ -149,7 +150,7 @@ public class SectorService {
      * 获取板块详情（带表现最好的 ETF 列表）
      */
     @Cacheable(value = "sectorDetail", key = "#sectorId")
-    public Map<String, Object> getSectorDetail(Integer sectorId, Integer userId) {
+    public SectorDetailDTO getSectorDetail(Integer sectorId, Integer userId) {
         log.debug("从数据库加载板块详情: sectorId={}", sectorId);
 
         Category category = categoryMapper.selectById(sectorId);
@@ -178,15 +179,14 @@ public class SectorService {
             isFavorite = favoriteCids.contains(sectorId);
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("id", category.getCid());
-        result.put("name", category.getName());
-        result.put("description", category.getDescription());
-        result.put("fundsCount", category.getItemCount());
-        result.put("isFavorite", isFavorite);
-        result.put("funds", topFunds);
-
-        return result;
+        return SectorDetailDTO.builder()
+                .id(category.getCid())
+                .name(category.getName())
+                .description(category.getDescription())
+                .fundsCount(category.getItemCount())
+                .isFavorite(isFavorite)
+                .funds(topFunds)
+                .build();
     }
 
     /**

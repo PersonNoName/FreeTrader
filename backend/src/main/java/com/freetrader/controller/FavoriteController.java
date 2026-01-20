@@ -7,7 +7,7 @@ import com.freetrader.exception.BusinessException;
 import com.freetrader.exception.ErrorCode;
 import com.freetrader.service.FavoriteService;
 import com.freetrader.service.UserService;
-import com.freetrader.util.SecurityConstants;
+import com.freetrader.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,8 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,13 +31,12 @@ public class FavoriteController {
     private final UserService userService;
 
     private Integer getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !SecurityConstants.ANONYMOUS_USER.equals(auth.getPrincipal())) {
-            String username = auth.getName();
-            User user = userService.findByUsername(username);
-            return user != null ? user.getId() : null;
-        }
-        throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
+        return SecurityUtils.getCurrentUsername()
+                .map(username -> {
+                    User user = userService.findByUsername(username);
+                    return user != null ? user.getId() : null;
+                })
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_LOGIN));
     }
 
     @Operation(summary = "获取收藏列表", description = "获取当前用户收藏的所有板块")

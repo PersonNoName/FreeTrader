@@ -2,22 +2,20 @@ package com.freetrader.controller;
 
 import com.freetrader.dto.Result;
 import com.freetrader.dto.SectorDTO;
+import com.freetrader.dto.SectorDetailDTO;
 import com.freetrader.entity.User;
 import com.freetrader.service.SectorService;
 import com.freetrader.service.UserService;
-import com.freetrader.util.SecurityConstants;
+import com.freetrader.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @Tag(name = "板块管理", description = "ETF板块数据查询接口")
 @RestController
@@ -29,13 +27,12 @@ public class SectorController {
     private final UserService userService;
 
     private Integer getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !SecurityConstants.ANONYMOUS_USER.equals(auth.getPrincipal())) {
-            String username = auth.getName();
-            User user = userService.findByUsername(username);
-            return user != null ? user.getId() : null;
-        }
-        return null;
+        return SecurityUtils.getCurrentUsername()
+                .map(username -> {
+                    User user = userService.findByUsername(username);
+                    return user != null ? user.getId() : null;
+                })
+                .orElse(null);
     }
 
     @Operation(summary = "获取所有板块", description = "获取所有ETF板块列表，包含平均涨跌幅、走势等信息")
@@ -53,10 +50,10 @@ public class SectorController {
             @ApiResponse(responseCode = "404", description = "板块不存在")
     })
     @GetMapping("/{id}")
-    public Result<Map<String, Object>> getSectorDetail(
+    public Result<SectorDetailDTO> getSectorDetail(
             @Parameter(description = "板块ID") @PathVariable Integer id) {
         Integer userId = getCurrentUserId();
-        Map<String, Object> detail = sectorService.getSectorDetail(id, userId);
+        SectorDetailDTO detail = sectorService.getSectorDetail(id, userId);
         return Result.success(detail);
     }
 }

@@ -104,3 +104,17 @@ springdoc:
     enabled: ${SWAGGER_ENABLED:true}
     tags-sorter: alpha
     operations-sorter: alpha
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  info:
+    env:
+      enabled: true
+
